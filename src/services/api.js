@@ -1,4 +1,4 @@
-const BASE_URL = 'http://localhost:8080/api';
+const BASE_URL = 'https://surge-backend-production-fa1c.up.railway.app/api';
 
 export const sendEvent = async (eventData) => {
   const response = await fetch(`${BASE_URL}/event`, {
