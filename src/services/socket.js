@@ -1,23 +1,32 @@
-const BASE_URL = 'https://surge-backend-production-fa1c.up.railway.app/api';
+import { Client } from '@stomp/stompjs';
+import SockJS from 'sockjs-client';
 
-export const sendEvent = async (eventData) => {
-  const response = await fetch(`${BASE_URL}/event`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(eventData),
+let stompClient = null;
+
+export const connectSocket = (onMessage) => {
+  stompClient = new Client({
+    webSocketFactory: () => new SockJS('https://surge-backend-production-fa1c.up.railway.app/ws'),
+    reconnectDelay: 5000,
+    onConnect: () => {
+      console.log('✅ WebSocket Connected!');
+      ['HIGH', 'MEDIUM', 'LOW'].forEach((zone) => {
+        stompClient.subscribe(`/topic/surge/${zone}`, (msg) => {
+          console.log(`📨 Zone: ${zone}, Value: ${msg.body}`);
+          const value = parseFloat(msg.body);
+          onMessage(zone, value);
+        });
+      });
+    },
+    onDisconnect: () => {
+      console.log('❌ WebSocket Disconnected!');
+    },
+    onStompError: (frame) => {
+      console.error('❌ STOMP error', frame);
+    },
   });
-  if (!response.ok) throw new Error('Failed to send event');
-  return response.text();
+  stompClient.activate();
 };
 
-export const getSurge = async (zone) => {
-  const response = await fetch(`${BASE_URL}/surge/${zone}`);
-  if (!response.ok) throw new Error('Failed to fetch surge');
-  return response.json();
-};
-
-export const getAllSurges = async () => {
-  const zones = ['HIGH', 'MEDIUM', 'LOW'];
-  const results = await Promise.all(zones.map((z) => getSurge(z)));
-  return { HIGH: results[0], MEDIUM: results[1], LOW: results[2] };
+export const disconnectSocket = () => {
+  if (stompClient) stompClient.deactivate();
 };
