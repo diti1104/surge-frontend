@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Dashboard from './pages/Dashboard';
 import Event from './pages/Event';
 import Analytics from './pages/Analytics';
+import { connectSocket, disconnectSocket } from './services/socket';
 import './App.css';
 
 const PAGES = [
@@ -12,6 +13,19 @@ const PAGES = [
 
 export default function App() {
   const [page, setPage] = useState('dashboard');
+  const [surges, setSurges] = useState({ HIGH: 1.0, MEDIUM: 1.0, LOW: 1.0 });
+  const [wsEvents, setWsEvents] = useState([]);
+
+  useEffect(() => {
+    connectSocket((zone, value) => {
+      setSurges((prev) => ({ ...prev, [zone]: value }));
+      setWsEvents((prev) => [
+        { zone, value, time: new Date().toLocaleTimeString() },
+        ...prev.slice(0, 19),
+      ]);
+    });
+    return () => disconnectSocket();
+  }, []);
 
   return (
     <div className="app">
@@ -34,7 +48,7 @@ export default function App() {
         </div>
       </nav>
       <main className="main">
-        {page === 'dashboard' && <Dashboard />}
+        {page === 'dashboard' && <Dashboard surges={surges} wsEvents={wsEvents} />}
         {page === 'simulate'  && <Event />}
         {page === 'analytics' && <Analytics />}
       </main>

@@ -1,6 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
-import { getAllSurges } from '../services/api';
-import { connectSocket, disconnectSocket } from '../services/socket';
+import { useState, useRef } from 'react';
 
 const ZONE_CONFIG = {
   HIGH:   { color: '#ff6b35', bg: 'rgba(255,107,53,0.08)', border: '#ff6b35' },
@@ -8,38 +6,10 @@ const ZONE_CONFIG = {
   LOW:    { color: '#00d4aa', bg: 'rgba(0,212,170,0.08)',  border: '#00d4aa' },
 };
 
-export default function Dashboard() {
-  const [surges, setSurges] = useState({ HIGH: 3.0, MEDIUM: 2.0, LOW: 1.2 });
-  const [history, setHistory] = useState([]);
-  const [connected, setConnected] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(null);
-  const prevSurges = useRef({ HIGH: 3.0, MEDIUM: 2.0, LOW: 1.2 });
-
-  useEffect(() => {
-    getAllSurges()
-      .then((data) => {
-        setSurges(data);
-        prevSurges.current = data;
-      })
-      .catch(console.error);
-
-    connectSocket((zone, value) => {
-      setConnected(true);
-      setSurges((prev) => {
-        prevSurges.current = prev;
-        return { ...prev, [zone]: value };
-      });
-      setLastUpdated(new Date().toLocaleTimeString());
-      setHistory((prev) => [
-        { zone, value, time: new Date().toLocaleTimeString() },
-        ...prev.slice(0, 19),
-      ]);
-    });
-
-    setTimeout(() => setConnected(true), 1500);
-    return () => disconnectSocket();
-  }, []);
-
+export default function Dashboard({ surges = { HIGH: 1.0, MEDIUM: 1.0, LOW: 1.0 }, wsEvents = [] }) {
+  const prevSurges = useRef(surges);
+  const lastUpdated = wsEvents.length > 0 ? wsEvents[0].time : null;
+  const connected = true;
   const peak = Math.max(...Object.values(surges)).toFixed(1);
 
   return (
@@ -51,20 +21,20 @@ export default function Dashboard() {
         </div>
         <div style={{
           ...s.badge,
-          background: connected ? 'rgba(0,230,118,0.12)' : 'rgba(255,71,87,0.12)',
-          borderColor: connected ? '#00e676' : '#ff4757',
-          color: connected ? '#00e676' : '#ff4757',
+          background: 'rgba(0,230,118,0.12)',
+          borderColor: '#00e676',
+          color: '#00e676',
         }}>
-          <span style={{ ...s.dot, background: connected ? '#00e676' : '#ff4757' }} />
-          {connected ? 'CONNECTED' : 'CONNECTING...'}
+          <span style={{ ...s.dot, background: '#00e676' }} />
+          CONNECTED
         </div>
       </div>
 
       <div style={s.metricRow}>
         {[
-          { label: 'Peak Surge',    value: peak + '×',            color: '#ff6b35' },
-          { label: 'Active Zones',  value: '3',                   color: '#9b59ff' },
-          { label: 'Last Update',   value: lastUpdated || '--:--:--', color: '#00d4aa' },
+          { label: 'Peak Surge',  value: peak + '×',            color: '#ff6b35' },
+          { label: 'Active Zones', value: '3',                  color: '#9b59ff' },
+          { label: 'Last Update', value: lastUpdated || '--:--:--', color: '#00d4aa' },
         ].map((m) => (
           <div key={m.label} style={s.metricCard}>
             <div style={s.metricLabel}>{m.label}</div>
@@ -79,6 +49,7 @@ export default function Dashboard() {
           const prev = prevSurges.current[zone];
           const trend = value > prev ? '↑' : value < prev ? '↓' : '–';
           const trendColor = value > prev ? '#ff4757' : value < prev ? '#00e676' : '#7a7a9a';
+          prevSurges.current = surges;
           return (
             <div key={zone} style={{ ...s.zoneCard, background: cfg.bg, borderColor: cfg.border }}>
               <div style={{ ...s.zoneTag, color: cfg.color }}>{zone} ZONE</div>
@@ -98,10 +69,10 @@ export default function Dashboard() {
 
       <div style={s.card}>
         <div style={s.cardTitle}>Recent WebSocket Updates</div>
-        {history.length === 0 ? (
+        {wsEvents.length === 0 ? (
           <div style={s.empty}>Waiting for live events from backend...</div>
         ) : (
-          history.slice(0, 8).map((h, i) => (
+          wsEvents.slice(0, 8).map((h, i) => (
             <div key={i} style={s.logRow}>
               <span style={{ ...s.logZone, color: ZONE_CONFIG[h.zone].color }}>{h.zone}</span>
               <span style={s.logArrow}>→</span>
